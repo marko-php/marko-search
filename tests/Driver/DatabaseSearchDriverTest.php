@@ -69,6 +69,11 @@ class FakeSearchConnection implements ConnectionInterface
     {
         return 'sqlite';
     }
+
+    public function supportsReturning(): bool
+    {
+        return false;
+    }
 }
 
 it('searches entities using SQL LIKE for partial text matching', function (): void {
