@@ -9,8 +9,13 @@ use Marko\Database\Diff\SchemaDiff;
 use Marko\Database\Diff\SqlGeneratorInterface;
 use Marko\Database\Entity\EntityMetadataFactory;
 use Marko\Database\Entity\SchemaBuilder;
+use Marko\Search\Config\SearchConfig;
+use Marko\Search\Contracts\FilterableInterface;
 use Marko\Search\Contracts\SearchableInterface;
+use Marko\Search\Contracts\SelectableInterface;
+use Marko\Search\Contracts\SortableInterface;
 use Marko\Search\Driver\DatabaseSearchDriver;
+use Marko\Testing\Fake\FakeConfigRepository;
 
 /**
  * Builds the search_reserved_settings table from ReservedWordSetting through SchemaBuilder and a driver's
@@ -60,17 +65,40 @@ class ReservedWordSearchTable
     }
 
     /**
-     * A driver searching the key, group and displayName columns.
+     * A driver searching the key, group and displayName columns, filtering and sorting on those plus order, and
+     * returning every column.
      */
     public static function driver(
         ConnectionInterface $connection,
     ): DatabaseSearchDriver {
-        return new DatabaseSearchDriver($connection, self::TABLE, new readonly class () implements SearchableInterface
+        $searchable = new readonly class () implements
+            SearchableInterface,
+            FilterableInterface,
+            SortableInterface,
+            SelectableInterface
         {
             public function getSearchableFields(): array
             {
                 return ['key' => 3.0, 'group' => 2.0, 'displayName' => 1.0];
             }
-        });
+
+            public function getFilterableFields(): array
+            {
+                return ['key', 'group', 'order', 'displayName'];
+            }
+
+            public function getSortableFields(): array
+            {
+                return ['key', 'order', 'displayName'];
+            }
+
+            public function getSelectableFields(): array
+            {
+                return ['id', 'key', 'group', 'order', 'displayName'];
+            }
+        };
+        $config = new SearchConfig(new FakeConfigRepository(['search.max_per_page' => 100]));
+
+        return new DatabaseSearchDriver($connection, self::TABLE, $searchable, $config);
     }
 }

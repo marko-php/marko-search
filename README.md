@@ -14,10 +14,12 @@ composer require marko/search
 use Marko\Search\Driver\DatabaseSearchDriver;
 use Marko\Search\Value\SearchCriteria;
 
+// Post implements SearchableInterface (and SortableInterface to allow sorting by created_at)
 $driver = new DatabaseSearchDriver(
     connection: $connection,
     tableName: 'posts',
     searchable: new Post(),
+    config: $searchConfig,
 );
 
 $result = $driver->search(

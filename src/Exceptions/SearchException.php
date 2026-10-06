@@ -30,6 +30,46 @@ class SearchException extends MarkoException
         );
     }
 
+    /**
+     * @param array<string> $allowed
+     */
+    public static function fieldNotFilterable(
+        string $field,
+        array $allowed,
+    ): self {
+        return new self(
+            message: "Field '$field' is not filterable",
+            context: "Filterable fields: '" . implode("', '", $allowed) . "'",
+            suggestion: 'Filter on one of the filterable fields, or declare the column in getFilterableFields() by'
+                . ' implementing FilterableInterface on the searchable',
+        );
+    }
+
+    /**
+     * @param array<string> $allowed
+     */
+    public static function fieldNotSortable(
+        string $field,
+        array $allowed,
+    ): self {
+        return new self(
+            message: "Field '$field' is not sortable",
+            context: "Sortable fields: '" . implode("', '", $allowed) . "'",
+            suggestion: 'Sort by one of the sortable fields, or declare the column in getSortableFields() by'
+                . ' implementing SortableInterface on the searchable',
+        );
+    }
+
+    public static function invalidPage(
+        int $page,
+    ): self {
+        return new self(
+            message: "Invalid search page: $page",
+            context: 'Search pages are numbered from 1',
+            suggestion: 'Pass a page number of 1 or greater to SearchCriteria::withPage()',
+        );
+    }
+
     public static function invalidSortDirection(
         string $direction,
     ): self {

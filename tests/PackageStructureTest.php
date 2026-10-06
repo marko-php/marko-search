@@ -24,8 +24,7 @@ it('creates valid package scaffolding with composer.json, module.php, and config
         ->and($module)->toBeArray()
         ->and($module)->toHaveKey('bindings')
         ->and($config)->toBeArray()
-        ->and($config)->toHaveKey('default_per_page')
-        ->and($config['default_per_page'])->toBe(15)
+        ->and($config)->not->toHaveKey('default_per_page')
         ->and($config)->toHaveKey('max_per_page')
         ->and($config['max_per_page'])->toBe(100);
 });

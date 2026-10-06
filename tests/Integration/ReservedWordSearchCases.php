@@ -56,4 +56,25 @@ function reservedWordSearchCases(): void
         expect(array_column($result->items, 'displayName'))->toBe(['Gamma Setting', 'Beta Setting', 'Alpha Setting'])
             ->and($result->total)->toBe(3);
     })->issue(338);
+
+    it('matches LIKE wildcards in the search query literally', function (): void {
+        $total = fn (string $query): int => $this->driver->search($query, SearchCriteria::create($query))->total;
+
+        expect($total('Alpha Setting'))->toBe(1)
+            ->and($total('%'))->toBe(0)
+            ->and($total('_'))->toBe(0)
+            ->and($total('Alpha_Setting'))->toBe(0)
+            ->and($total('Alpha%Setting'))->toBe(0)
+            ->and($total('!'))->toBe(0);
+    })->issue(418);
+
+    it('matches nothing for an empty In filter instead of failing with IN ()', function (): void {
+        $result = $this->driver->search(
+            'Setting',
+            SearchCriteria::create('Setting')->withFilter(new SearchFilter('order', FilterOperator::In, [])),
+        );
+
+        expect($result->total)->toBe(0)
+            ->and($result->items)->toBe([]);
+    })->issue(418);
 }
