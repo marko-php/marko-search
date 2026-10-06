@@ -6,10 +6,13 @@
     "require": {
         "php": "^8.5",
         "marko/core": "self.version",
-        "marko/config": "self.version"
+        "marko/config": "self.version",
+        "marko/database": "self.version"
     },
     "require-dev": {
         "marko/testing": "self.version",
+        "marko/database-mysql": "self.version",
+        "marko/database-pgsql": "self.version",
         "pestphp/pest": "^4.0"
     },
     "autoload": {

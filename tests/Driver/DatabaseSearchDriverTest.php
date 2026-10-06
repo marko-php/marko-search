@@ -113,8 +113,8 @@ it('searches across multiple fields defined by SearchableInterface', function ()
     // The data query should contain LIKE conditions for both title and body fields
     $dataQuery = $connection->queries[1] ?? $connection->queries[0];
     expect($dataQuery['sql'])
-        ->toContain('title LIKE ?')
-        ->toContain('body LIKE ?')
+        ->toContain('"title" LIKE ?')
+        ->toContain('"body" LIKE ?')
         ->toContain(' OR ')
         ->and($dataQuery['bindings'])->toBe(['%test%', '%test%']);
 });
@@ -132,8 +132,8 @@ it('applies equality filters from SearchCriteria to query', function (): void {
     $dataQuery = $connection->queries[1] ?? $connection->queries[0];
 
     expect($dataQuery['sql'])
-        ->toContain('status = ?')
-        ->toContain('author_id = ?')
+        ->toContain('"status" = ?')
+        ->toContain('"author_id" = ?')
         ->and($dataQuery['bindings'])->toContain('published')
         ->and($dataQuery['bindings'])->toContain(5);
 });
@@ -150,7 +150,7 @@ it('applies sorting from SearchCriteria to query results', function (): void {
     $dataQuery = $connection->queries[1] ?? $connection->queries[0];
 
     expect($dataQuery['sql'])
-        ->toContain('ORDER BY created_at desc');
+        ->toContain('ORDER BY "created_at" desc');
 });
 
 it('paginates results based on SearchCriteria page and per_page', function (): void {
@@ -285,4 +285,78 @@ it('returns SearchResult with total count and matched items', function (): void 
         ->and($result->perPage)->toBe(5)
         ->and($result->items[0]['title'])->toBe('PHP Best Practices')
         ->and($result->items[1]['title'])->toBe('Learn PHP');
+});
+
+// Quotes with backticks, so the SQL proves the driver asks the connection rather than choosing a delimiter itself
+class BacktickSearchConnection extends FakeSearchConnection
+{
+    public function quoteIdentifier(
+        string $identifier,
+    ): string {
+        return '`' . str_replace('`', '``', $identifier) . '`';
+    }
+}
+
+readonly class ReservedWordSearchable implements SearchableInterface
+{
+    public function getSearchableFields(): array
+    {
+        return ['key' => 2.0, 'group' => 1.0];
+    }
+}
+
+describe('identifier quoting', function (): void {
+    it('quotes the table and searchable fields through the connection', function (): void {
+        $connection = new BacktickSearchConnection();
+
+        new DatabaseSearchDriver($connection, 'posts', new PostSearchable())
+            ->search('php', SearchCriteria::create('php'));
+
+        expect($connection->queries[0]['sql'])
+            ->toBe('SELECT COUNT(*) as count FROM `posts` WHERE (`title` LIKE ? OR `body` LIKE ?)')
+            ->and($connection->queries[1]['sql'])
+            ->toBe('SELECT * FROM `posts` WHERE (`title` LIKE ? OR `body` LIKE ?) LIMIT 15 OFFSET 0');
+    });
+
+    it('quotes filter fields through the connection for every operator', function (): void {
+        $connection = new BacktickSearchConnection();
+        $criteria = SearchCriteria::create('php')
+            ->withFilter(new SearchFilter('status', FilterOperator::Equals, 'published'))
+            ->withFilter(new SearchFilter('status', FilterOperator::NotEquals, 'draft'))
+            ->withFilter(new SearchFilter('views', FilterOperator::GreaterThan, 10))
+            ->withFilter(new SearchFilter('views', FilterOperator::LessThan, 100))
+            ->withFilter(new SearchFilter('slug', FilterOperator::Like, 'php-%'))
+            ->withFilter(new SearchFilter('author_id', FilterOperator::In, [1, 2]));
+
+        new DatabaseSearchDriver($connection, 'posts', new PostSearchable())->search('php', $criteria);
+
+        expect($connection->queries[1]['sql'])->toContain(
+            '(`title` LIKE ? OR `body` LIKE ?) AND `status` = ? AND `status` != ? AND `views` > ? AND `views` < ?'
+            . ' AND `slug` LIKE ? AND `author_id` IN (?, ?)',
+        )->and($connection->queries[1]['bindings'])
+            ->toBe(['%php%', '%php%', 'published', 'draft', 10, 100, 'php-%', 1, 2]);
+    });
+
+    it('quotes the sort column through the connection and keeps the direction bare', function (): void {
+        $connection = new BacktickSearchConnection();
+
+        new DatabaseSearchDriver($connection, 'posts', new PostSearchable())
+            ->search('php', SearchCriteria::create('php')->withSort('created_at', 'desc'));
+
+        expect($connection->queries[1]['sql'])->toContain(' ORDER BY `created_at` desc LIMIT');
+    });
+
+    it('quotes reserved-word identifiers instead of interpolating them bare', function (): void {
+        $connection = new BacktickSearchConnection();
+        $criteria = SearchCriteria::create('x')
+            ->withFilter(new SearchFilter('group', FilterOperator::Equals, 'general'))
+            ->withSort('order', 'asc');
+
+        new DatabaseSearchDriver($connection, 'order', new ReservedWordSearchable())->search('x', $criteria);
+
+        expect($connection->queries[1]['sql'])->toBe(
+            'SELECT * FROM `order` WHERE (`key` LIKE ? OR `group` LIKE ?) AND `group` = ?'
+            . ' ORDER BY `order` asc LIMIT 15 OFFSET 0',
+        );
+    });
 });
